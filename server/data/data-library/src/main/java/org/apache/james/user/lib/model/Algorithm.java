@@ -117,7 +117,7 @@ public class Algorithm {
 
         public byte[] digestString(String pass, String salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
             KeySpec spec = new PBEKeySpec(pass.toCharArray(), salt.getBytes(ISO_8859_1), iterationCount, keySize);
-            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
 
             return factory.generateSecret(spec).getEncoded();
         }
