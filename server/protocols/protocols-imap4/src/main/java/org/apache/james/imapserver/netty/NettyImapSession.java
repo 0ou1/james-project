@@ -18,11 +18,15 @@
  ****************************************************************/
 package org.apache.james.imapserver.netty;
 
+import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+
+import javax.net.ssl.SSLPeerUnverifiedException;
 
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.james.imap.api.ImapSessionState;
@@ -35,14 +39,21 @@ import org.apache.james.mailbox.MailboxSession;
 import org.apache.james.protocols.api.OidcSASLConfiguration;
 import org.apache.james.protocols.netty.Encryption;
 import org.apache.james.protocols.netty.LineHandlerAware;
+import org.bouncycastle.asn1.x500.style.BCStyle;
+import org.bouncycastle.asn1.x500.style.IETFUtils;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateHolder;
+
+import com.github.fge.lambdas.Throwing;
 
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
 import io.netty.handler.codec.compression.JZlibDecoder;
 import io.netty.handler.codec.compression.JZlibEncoder;
 import io.netty.handler.codec.compression.ZlibDecoder;
 import io.netty.handler.codec.compression.ZlibEncoder;
 import io.netty.handler.codec.compression.ZlibWrapper;
+import io.netty.handler.ssl.SslHandler;
 import reactor.core.publisher.Mono;
 
 public class NettyImapSession implements ImapSession, NettyConstants {
@@ -182,6 +193,27 @@ public class NettyImapSession implements ImapSession, NettyConstants {
         });
 
         return true;
+    }
+
+    public Optional<String> extractOuParameterFromClientCertificate() throws SSLPeerUnverifiedException {
+        ChannelHandler handler = channel.pipeline().get(SSL_HANDLER);
+        if (!(handler instanceof SslHandler)) {
+            return Optional.empty();
+        }
+        SslHandler sslHandler = (SslHandler) handler;
+
+        return Optional.ofNullable(sslHandler.engine().getSession().getPeerCertificates())
+            .stream()
+            .flatMap(Arrays::stream)
+            .filter(X509Certificate.class::isInstance)
+            .map(X509Certificate.class::cast)
+            .map(Throwing.function(certificate -> IETFUtils.valueToString(
+                new JcaX509CertificateHolder(certificate)
+                    .getSubject()
+                    .getRDNs(BCStyle.OU)[0]
+                    .getFirst()
+                    .getValue())))
+            .findFirst();
     }
 
     public static class EventLoopImapResponseWriter implements ImapResponseWriter {
