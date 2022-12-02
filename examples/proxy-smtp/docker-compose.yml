@@ -14,7 +14,7 @@ services:
       - james
 
   james:
-    image: apache/james:memory-latest
+    image: apache/james:memory-nightly-02-12-2022
     container_name: james
     hostname: james.local
     volumes:
